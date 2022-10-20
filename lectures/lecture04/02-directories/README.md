@@ -4,7 +4,7 @@ Before you get started, type
 
     pwd
 
-again and make sure that the output ends with `tfcb_2021/lectures/lecture03`.
+again and make sure that the output ends with `tfcb_2022/lectures/lecture04`.
 
 # Directories
 
@@ -30,51 +30,20 @@ The `pwd` command is short for "print working directory."
 
 On my computer the `pwd` command outputs
 
-    /home/ematsen/writing/tfcb_2021/lectures/lecture03/02-directories
+    /home/melody/tfcb_2022/lectures/lecture04/02-directories
 
 which shows the list of directories I'm in.
 Such a list of directories (perhaps ending with a file name) is called an _absolute path_.
-Each successive directory is separated from the previous one with a `/`, so I'm in a directory called `directories`, which is contained in a directory called `lecture03`, which is contained in a directory called `lectures`, and so on.
+Each successive directory is separated from the previous one with a `/`, so I'm in a directory called `directories`, which is contained in a directory called `lecture04`, which is contained in a directory called `lectures`, and so on.
 As I described before the beginning ("root") directory is called `/`.
 
 Remember how before we learned how to give an argument to the directory-listing command?
 Try this: give that command a part of your path, so see the list of files at various places in your directory hierarchy.
 For example, on my computer I could try
 
-    ls /home/ematsen/writing/tfcb_2021
+    ls /home/melody/tfcb_2022
 
 but on your machine the path components will be different.
-
-
-### Tree
-
-Of course, directories can be nested and so it's not always easy to get an overall view of what is where.
-For this there is the `tree` command, which will show a nested directory structure as a tree.
-
-Try
-
-    tree
-
-The output should look like
-
-    .
-    ├── purchase
-    │   ├── egg
-    │   │   └── yolk.md
-    │   └── greenland
-    │       └── ice.md
-    └── README.md
-
-    3 directories, 3 files
-
-Try executing `tree` now and see if you get the same result.
-
-The `tree` command can also take an argument, which is the directory for which it should draw the tree.
-
-* without changing directories, show the directory tree of the `purchase` directory only
-* look in the `tree` documentation to list only directories (and not files) and try that out here
-* try giving `cd` the name of a directory that doesn't exist or isn't a subdirectory of the current directory
-
 
 ### Tab completion
 

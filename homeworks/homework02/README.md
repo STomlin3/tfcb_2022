@@ -18,40 +18,58 @@ _Did you hit any points of frustration, and if so, how could we improve the mate
 
 **20 points**
 
-Learn about the difference between standard out ("stdout") and standard error ("stderr") from [this article](https://www.howtogeek.com/435903/what-are-stdin-stdout-and-stderr-on-linux/) (feel free to read the whole thing, but you can stop before the section "Detecting Redirection Within a Script").
-Note that in reading this article, you don't need to come up with a script that will throw an error: we have one at `tfcb_2021/lectures/lecture03/06-scripting/script2.sh`.
+**Write a script that outputs some user and location data and moves that output to a newly created directory**
 
-_Write a command here that redirects stdout from `script2.sh` to a file named `stdout.txt` and redirects stderr to a file named `stderr.txt`._
+Make a single script that prints out a file called question01.txt. 
+
+This file should contain the following text:
+
+  My name is (your username, but the script needs to work for anyone, not just you)
+
+  My home directory is (your home directory, but the script needs to work for anyone, not just you)
+
+  The contents of the tfcb_2022/lectures/lecture04/ directory are
+
+  (prints the contents of that directory)
+
+This script should also create a directory called homework02, and move question01.txt into the homework02 directory.
+
+Example:
+My name is melody
+My home directory is /Users/melody
+The contents of the tfcb_2022/lectures/lecture04/ directory are
+01-first-steps.md
+02-directories
+03-redirection
+04-vim
+05-history
+06-scripting
+07-more-interactive-shell
+README.md
+quickref.md
+sequence.gb
+slides
+vader.txt
 
 
 ## Problem 2
 
 **20 points**
 
-You might have noticed that the files we're dealing with have "extensions" that describe their file type.
-For example, text files are marked with `.txt`, and shell scripts are labeled with `.sh`.
+**Write a script that uses a loop to output files with specific names**
 
-This is a handy convention which is used heavily by a command-line library called [imagemagick](https://imagemagick.org/index.php) to manipulate images.
-ImageMagick has been installed on rhino, but needs to be loaded before you use it:
 
-    ml ImageMagick
+Make a single script that does the following:
 
-Don't forget to load the updated version of parallel:
+Makes a new directory in homework02 called question02
 
-    ml parallel
+In that directory, your script should make 25 new files called
+file###.txt
 
-Once the library is loaded, go to the `lecture03/slides/images` directory and try
+the ### should be the numbers from a list you can find here:
 
-    convert betty-crocker.jpg betty-crocker.png
+tfcb_2022/homeworks/homework02/list.txt
 
-which converts `betty-crocker.jpg` (a JPG image) to `betty-crocker.png` (a PNG image).
-You can confirm proper conversion using `file`.
-Now, your turn:
+You can make the contents of those files whatever you want (hint: slide 10... what was the contents of the fake "jpg" file?)
 
-_Use parallel to convert all of the JPGs in this directory to PNG images._
 
-Big hint: There is a very similar sort of command in the "Compute intensive jobs and substitution" section of the `parallel` man page.
-
-Next:
-
-_Write a script that will take all of the JPGs in the current directory, convert them to PNGs, and then assemble all of the PNGs in the current directory into a file called `montage.png` using the `montage` command. Paste that script here._

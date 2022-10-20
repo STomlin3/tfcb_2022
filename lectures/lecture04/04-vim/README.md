@@ -56,6 +56,7 @@ There are lots of ways to move around beyond the arrow keys, but I'm just going 
 * `0` moves to the beginning of the line, and `$` moves to the end of the line
 * `b` moves back one word, and `w` moves forward one word
 * `{` moves back one paragraph, and `}` moves forward one paragraph
+* `G` moves you to the end of the document
 
 You can prefix these commands with numbers to move faster, e.g. `3w` moves you forward three words.
 
@@ -71,6 +72,31 @@ To search, use `/` and type what you want to find.
 When you are done typing the thing you want to find, hit return.
 If you want to find the next item, hit `n`.
 You can go back using `Ctrl-o` as described before.
+
+## Find / Replace
+
+This is a colon command using the search function.
+
+Let's say we want to change every instance of 'citizen' in this speech to 'computer programmer'. To do this use this command:
+
+`:%s/citizen/computer_programmer/g`
+
+If you want to change every instance in the whole document with out confirming each one, the basic structure is as follows:
+
+`:%s/input/output/g`
+
+*If you want your search term to have a space or a special character you need to use the escape character
+
+## Deleting Lines
+
+First bring your cursor to the line you want to delete: (Not a colon command)
+
+* `dd` delete a whole line
+* `4 dd` delete that line and the 3 subsequnt lines
+
+To get to a specific line is a colon command
+* `:1` brings you do the first line
+* `:6` brings you do the 6th line
 
 
 ## Cutting and pasting
