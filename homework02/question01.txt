@@ -1,1 +1,4 @@
-my name is and my home directory is The contents of the tfcb_2022/lectures/lecture04/ directory are README.md homeworks lectures reference.md software tfcb-homework01
+my name is and my home directory is The contents of the tfcb_2022/lectures/lecture04/ directory are README.md homeworks lectures reference.md software tfcb-homework02
+echo my name is $user and my home directory is $home The contents of the tfcb_2022/lectures/lecture04/ directory are $(ls) > question01.txt
+mkdir homework02
+mv question01.txt homework02
