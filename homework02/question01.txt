@@ -1,0 +1,1 @@
+my name is and my home directory is The contents of the tfcb_2022/lectures/lecture04/ directory are README.md homeworks lectures reference.md software tfcb-homework01
