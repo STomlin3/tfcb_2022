@@ -11,9 +11,9 @@
 
 <meta name="author" content="Gavin Ha" />
 
-<meta name="date" content="2021-11-30" />
+<meta name="date" content="2022-11-17" />
 
-<title>MCB536 Lecture 16 (Part 2): Sequence Data Analysis in R</title>
+<title>MCB536 Lecture 15 (Part 2): Read Variant Call Format (VCF) Files in R</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -359,157 +359,151 @@ pre code {
 
 
 
-<h1 class="title toc-ignore">MCB536 Lecture 16 (Part 2): Sequence Data Analysis in R</h1>
+<h1 class="title toc-ignore">MCB536 Lecture 15 (Part 2): Read Variant Call Format (VCF) Files in R</h1>
 <h4 class="author">Gavin Ha</h4>
-<h4 class="date">11/30/2021</h4>
+<h4 class="date">11/17/2022</h4>
 
 </div>
 
 
-<div id="loading-and-querying-a-bam-file-using-rsamtools" class="section level1">
-<h1>Loading and querying a BAM file using Rsamtools</h1>
-<p>The BAM file is the primary input for Rsamtools. There are two initial steps:</p>
-<ol style="list-style-type: lower-alpha">
-<li>Define the genomic coordinates and components to query (<code>ScanBamParam</code>)</li>
-<li>Scan the BAM file (<code>scanBam</code>)</li>
-</ol>
-<p>For this tutorial, we will be using the same data and example from Lecture 15: Slides 16-24. The BAM file can be downloaded at <a href="https://www.dropbox.com/home/File%20requests/TFCB_tutorials" class="uri">https://www.dropbox.com/home/File%20requests/TFCB_tutorials</a></p>
-<p>For more information, refer to <a href="https://bioconductor.org/packages/release/bioc/vignettes/Rsamtools/inst/doc/Rsamtools-Overview.pdf" class="uri">https://bioconductor.org/packages/release/bioc/vignettes/Rsamtools/inst/doc/Rsamtools-Overview.pdf</a></p>
-<div id="install-and-load-the-rsamtools-bioconductor-package" class="section level2">
-<h2>0 Install and load the <code>Rsamtools</code> Bioconductor package</h2>
-<p>Bioconductor package providing functions to interface with aligned BAM files. <a href="https://bioconductor.org/packages/release/bioc/html/Rsamtools.html" class="uri">https://bioconductor.org/packages/release/bioc/html/Rsamtools.html</a></p>
-<pre class="r"><code>#BiocManager::install(&quot;Rsamtools&quot;)
-library(Rsamtools)</code></pre>
+<p>We will learn to read VCF files within R using a publicly available dataset of genomic variant calls for the infamous individual, NA12878. The Genome-in-a-Bottle Consortium has compiled consensus variant calls on this individual’s genome and released this data for researchers to use. One of the main purposes of this data is to provide a benchmark for those to develop computational tools and analysis of human genomes. See <a href="https://github.com/genome-in-a-bottle/giab_latest_release" class="uri">https://github.com/genome-in-a-bottle/giab_latest_release</a></p>
+<p>Variant Call Format (VCF) is a very common format for representing genomic variation data. See Lecture 16: Slides 19.</p>
+<div id="install-and-load-the-variantannotation-bioconductor-package" class="section level2">
+<h2>0. Install and load the <code>VariantAnnotation</code> Bioconductor package</h2>
+<p>Load the <code>VariantAnnotation</code> package</p>
+<pre class="r"><code>#BiocManager::install(&quot;VariantAnnotation&quot;)
+library(VariantAnnotation)</code></pre>
 </div>
-<div id="setup-parameters-for-scanning-bam-file" class="section level2">
-<h2>1. Setup parameters for scanning BAM file</h2>
-<div id="a.-specify-the-genomic-location-of-interest-to-query-in-the-bam-file." class="section level3">
-<h3>a. Specify the genomic location of interest to query in the BAM file.</h3>
-<p>This will make use of two of the packages (<code>GRanges</code>) that we will describe in more detail later.</p>
-<pre class="r"><code>whichRanges &lt;- GRanges(seqnames = &quot;17&quot;,
-                       IRanges(start = 37844393, end = 37844393))</code></pre>
-</div>
-<div id="b.-specify-which-fields-to-return-in-the-query." class="section level3">
-<h3>b. Specify which fields to return in the query.</h3>
-<p>To find out the default fields to return, use <code>scanBamWhat()</code></p>
-<pre class="r"><code>whatFields &lt;- scanBamWhat()</code></pre>
-</div>
-<div id="c.-specify-the-filters-to-use-to-include-or-exclude-reads." class="section level3">
-<h3>c. Specify the filters to use to include or exclude reads.</h3>
-<p>This is an essential concept in analyzing sequence data. First, specify the status of the reads based on the <code>FLAG</code> (recall Lecture 15: Slide 22). For more details, use <code>?scanBamFlag</code></p>
-<pre class="r"><code>flag &lt;- scanBamFlag(isDuplicate = FALSE)  # exclude PCR duplicate reads</code></pre>
-<p>Next, specify additional filters to use including <code>mapqFilter</code>, <code>tagFilter</code>. These are included in the final <code>scanBamParam</code> object instantiation, along with all the previous arguments.</p>
-<pre class="r"><code>param &lt;- ScanBamParam(flag = flag, which = whichRanges, what = whatFields,  
-             mapqFilter = 30, tag = c(&quot;RG&quot;))
-param</code></pre>
-<pre><code>## class: ScanBamParam
-## bamFlag (NA unless specified): isDuplicate=FALSE
-## bamSimpleCigar: FALSE
-## bamReverseComplement: FALSE
-## bamTag: RG 
-## bamTagFilter:
-## bamWhich: 1 ranges
-## bamWhat: qname, flag, rname, strand, pos, qwidth, mapq, cigar, mrnm,
-##   mpos, isize, seq, qual, groupid, mate_status
-## bamMapqFilter: 30</code></pre>
+<div id="prepare-parameters-for-reading-vcf-file." class="section level2">
+<h2>1. Prepare parameters for reading VCF file.</h2>
+<p>There are a lot of variants in this file <code>GIAB_highconf_v.3.3.2.vcf.gz</code>, so we want to restrict to a smaller region for this example.</p>
+<div id="a.-setup-parameters-for-scanning-the-vcf-file." class="section level3">
+<h3>a. Setup parameters for scanning the VCF file.</h3>
+<p>First, we need to set up a <code>ScanVcfParam</code> object to read within <code>17:35500000-36000000</code>.</p>
+<pre class="r"><code>vcfFile &lt;- &quot;GIAB_highconf_v.3.3.2.vcf.gz&quot;
+vcfHead &lt;- scanVcfHeader(vcfFile)
+myGRange4 &lt;- GRanges(seqnames = &quot;17&quot;, ranges = IRanges(start = 35500000, end = 36000000))
+vcf.param &lt;- ScanVcfParam(which = myGRange4) </code></pre>
 </div>
 </div>
-<div id="query-the-bam-file" class="section level2">
-<h2>2. Query the BAM file</h2>
-<p>Using the params we just defined, we will query the BAM file <code>BRCA_IDC_cfDNA.bam</code>.</p>
-<pre class="r"><code>bamFile &lt;- &quot;BRCA_IDC_cfDNA.bam&quot;
-bam &lt;- scanBam(bamFile, param = param)</code></pre>
-<p>This returns a <code>list</code> object with each element representing a read. For each element/read, there is another <code>list</code> with the fields in the BAM file we requested with <code>scanBamWhat()</code>. Here is a breakdown of what is in the first read. Refer to Lecture 15: Slides 22.</p>
-<pre class="r"><code>bam[[1]]$qname # reqd query name</code></pre>
-<pre><code>## [1] &quot;41976152&quot;</code></pre>
-<pre class="r"><code>bam[[1]]$flag  # bitwise flag describing the read alignment</code></pre>
-<pre><code>## [1] 163</code></pre>
-<pre class="r"><code>bam[[1]]$rname # reference sequence name</code></pre>
-<pre><code>## [1] 17
-## 86 Levels: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y ... hs37d5</code></pre>
-<pre class="r"><code>bam[[1]]$pos   # position of aligned read (leftmost coordinate)</code></pre>
-<pre><code>## [1] 37844359</code></pre>
-<pre class="r"><code>bam[[1]]$mapq  # mapping quality of the read alignment</code></pre>
-<pre><code>## [1] 60</code></pre>
-<pre class="r"><code>bam[[1]]$cigar # CIGAR string</code></pre>
-<pre><code>## [1] &quot;39M&quot;</code></pre>
-<pre class="r"><code>bam[[1]]$mrnm  # mate read&#39;s reference sequence name</code></pre>
-<pre><code>## [1] 17
-## 86 Levels: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y ... hs37d5</code></pre>
-<pre class="r"><code>bam[[1]]$mpos  # mate read&#39;s aligned position</code></pre>
-<pre><code>## [1] 37844477</code></pre>
-<pre class="r"><code>bam[[1]]$isize # insert size or templent length; aka fragment size</code></pre>
-<pre><code>## [1] 157</code></pre>
-<pre class="r"><code>as.character(bam[[1]]$seq)   # sequence of mapped reads on forward strand</code></pre>
-<pre><code>## [1] &quot;ACTCTCCGCTGAAGTCCACACAGTTTAAATTAAAGTTCC&quot;</code></pre>
-<pre class="r"><code>as.character(bam[[1]]$qual)  # base qualities of the sequence aligment</code></pre>
-<pre><code>## [1] &quot;.AAAAFFFFFFFFFFFF)FAFFFFFFFFFFFFFFFFFFF&quot;</code></pre>
-<pre class="r"><code>bam[[1]]$tag   # value for the tag we specified</code></pre>
-<pre><code>## $RG
-## [1] &quot;P12.17.7_Breast&quot;</code></pre>
+<div id="read-the-vcf-file." class="section level2">
+<h2>2. Read the VCF file.</h2>
+<pre class="r"><code>vcf &lt;- readVcf(vcfFile, genome = &quot;hg19&quot;, param = vcf.param)</code></pre>
+<p>The <code>vcf</code> variable is of class <code>CollapsedVCF</code> and will contain header information and data. Let’s see what information has been parsed by <code>readVcf</code>.</p>
 </div>
-<div id="exercise-2-extract-sequence-data-information" class="section level2">
-<h2>Exercise 2: Extract sequence data information</h2>
-<div id="a.-create-a-range-for-1169462758-69462758." class="section level3">
-<h3>a. Create a range for <code>11:69462758-69462758</code>.</h3>
+<div id="extract-the-contents-of-the-vcf-entries." class="section level2">
+<h2>3. Extract the contents of the VCF entries.</h2>
+<div id="a.-return-the-variants-in-this-region-as-a-granges-object." class="section level3">
+<h3>a. Return the variants in this region as a <code>GRanges</code> object.</h3>
+<p>The <code>rowRanges</code> function will return a <code>GRanges</code> object containing the coordinates, REF/ALT bases, quality, and filtering status of the variants.</p>
+<pre class="r"><code>rowRanges(vcf)</code></pre>
+<pre><code>## GRanges object with 332 ranges and 5 metadata columns:
+##               seqnames            ranges strand | paramRangeID            REF
+##                  &lt;Rle&gt;         &lt;IRanges&gt;  &lt;Rle&gt; |     &lt;factor&gt; &lt;DNAStringSet&gt;
+##     rs2411161       17          35501799      * |           NA              C
+##     rs8073074       17          35502949      * |           NA              A
+##     rs4523972       17          35507230      * |           NA              C
+##   rs111498996       17 35507465-35507466      * |           NA             CA
+##     rs8077266       17          35509302      * |           NA              A
+##           ...      ...               ...    ... .          ...            ...
+##     rs8080225       17          35996195      * |           NA              T
+##     rs8075378       17          35996582      * |           NA              G
+##     rs6607281       17          35997126      * |           NA              T
+##     rs4332783       17          35997674      * |           NA              A
+##    rs71984199       17          35998800      * |           NA              C
+##                              ALT      QUAL      FILTER
+##               &lt;DNAStringSetList&gt; &lt;numeric&gt; &lt;character&gt;
+##     rs2411161                  T        50        PASS
+##     rs8073074                  G        50        PASS
+##     rs4523972                  T        50        PASS
+##   rs111498996                  C        50        PASS
+##     rs8077266                  G        50        PASS
+##           ...                ...       ...         ...
+##     rs8080225                  C        50        PASS
+##     rs8075378                  A        50        PASS
+##     rs6607281                  C        50        PASS
+##     rs4332783                  G        50        PASS
+##    rs71984199                 CT        50        PASS
+##   -------
+##   seqinfo: 25 sequences from hg19 genome</code></pre>
+</div>
+<div id="b.-inspect-the-header-information" class="section level3">
+<h3>b. Inspect the header information</h3>
+<p>The <code>INFO</code> column in the original VCF text file contains a semi-colon delimited set of custom fields with flexible format that algorithms will output. Here, it is parsed into usable format. First, let’s look at what fields are available from the header.</p>
+<pre class="r"><code>info(vcf) # returns a DataFrame object</code></pre>
+<p>The <code>FORMAT</code> column in the original VCF text file contains the format and description of the genotype fields. Let’s see what these are.</p>
+<pre class="r"><code>geno(header(vcf))</code></pre>
+<pre><code>## DataFrame with 8 rows and 3 columns
+##            Number        Type            Description
+##       &lt;character&gt; &lt;character&gt;            &lt;character&gt;
+## GT              1      String Consensus Genotype a..
+## DP              1     Integer Total read depth sum..
+## GQ              1     Integer Net Genotype quality..
+## ADALL           R     Integer Net allele depths ac..
+## AD              R     Integer Net allele depths ac..
+## IGT             1      String Original input genot..
+## IPS             1      String      Phase set for IGT
+## PS              1      String       Phase set for GT</code></pre>
+</div>
+<div id="c.-inspect-the-genotype-read-depth-and-allele-depth-inforation." class="section level3">
+<h3>c. Inspect the genotype, read depth, and allele depth inforation.</h3>
+<p>To see the genotype <code>GT</code>, read depth <code>DP</code>, and allele depth <code>AD</code>, we access the the list.</p>
+<pre class="r"><code>geno(vcf)$GT[1:5]</code></pre>
+<pre><code>## [1] &quot;1|1&quot; &quot;1|1&quot; &quot;1|1&quot; &quot;1|1&quot; &quot;1|1&quot;</code></pre>
+<pre class="r"><code>geno(vcf)$DP[1:5]</code></pre>
+<pre><code>## [1] 675 607 528 470 718</code></pre>
+<pre class="r"><code>geno(vcf)$AD[1:5]</code></pre>
+<pre><code>## [[1]]
+## [1]  95 372
+## 
+## [[2]]
+## [1]  77 334
+## 
+## [[3]]
+## [1]  66 292
+## 
+## [[4]]
+## [1]   0 223
+## 
+## [[5]]
+## [1]  97 393</code></pre>
+</div>
+<div id="d.-combine-all-geno-fields-into-a-single-table." class="section level3">
+<h3>d. Combine all <code>geno</code> fields into a single table.</h3>
+<p>You can also combine all fields into a <code>data.frame</code> object. But this code only works if the VCF contains a single sample.</p>
+<pre class="r"><code>genoData &lt;- data.frame(do.call(cbind, geno(vcf)))
+colnames(genoData) &lt;- rownames(geno(header(vcf)))
+genoData[1:10,]</code></pre>
+<pre><code>##              GT  DP   GQ    ADALL       AD IGT IPS     PS
+## rs2411161   1|1 675  405   1, 301  95, 372 1/1   . PATMAT
+## rs8073074   1|1 607  387   0, 278  77, 334 1/1   . PATMAT
+## rs4523972   1|1 528  290   1, 230  66, 292 1/1   . PATMAT
+## rs111498996 1|1 470   99   0, 223   0, 223 1/1   . PATMAT
+## rs8077266   1|1 718  452   0, 328  97, 393 1/1   . PATMAT
+## rs75773263  1|1 773  233   0, 378   31, 31 1/1   . PATMAT
+## rs725038    1|1 896  287   0, 442   51, 51 1/1   . PATMAT
+## rs10664252  1|1 577  366   0, 265   68, 68 1/1   . PATMAT
+## rs11655013  0|1 720 1197 159, 155 206, 193 0/1   . PATMAT
+## rs9906543   1|1 730  458   0, 315 119, 420 1/1   . PATMAT</code></pre>
+</div>
+</div>
+<div id="exercise-3-reading-variants-from-a-vcf-file." class="section level2">
+<h2>Exercise 3: Reading variants from a VCF file.</h2>
+<div id="a.-create-a-range-for-8128747680-128753680." class="section level3">
+<h3>a. Create a range for <code>8:128747680-128753680</code>.</h3>
 <pre class="r"><code># GRanges()</code></pre>
 </div>
-<div id="b.-specify-the-bam-query-parameters." class="section level3">
-<h3>b. Specify the BAM query parameters.</h3>
-<pre class="r"><code># scanBamWhat()
-
-# scanBamFlag()
-
-# ScanBamParam()</code></pre>
+<div id="b.-setup-parameters-to-read-vcf." class="section level3">
+<h3>b. Setup parameters to read VCF.</h3>
+<pre class="r"><code># ScanVcfParam</code></pre>
 </div>
-<div id="c.-what-is-the-sequence-of-the-read-at-1169462758-69462758" class="section level3">
-<h3>c. What is the sequence of the read at <code>11:69462758-69462758</code>?</h3>
-<pre class="r"><code># scanBam()</code></pre>
+<div id="c.-read-the-vcf-file-at-8128747680-128753680" class="section level3">
+<h3>c. Read the VCF file at <code>8:128747680-128753680</code></h3>
+<pre class="r"><code># readVcf</code></pre>
 </div>
-</div>
-</div>
-<div id="compute-pile-up-statistics" class="section level1">
-<h1>2. Compute “Pile-Up” Statistics</h1>
-<p><strong>For your reference</strong></p>
-<p>The pileup is a term referring to counting the alleles from all the reads at a given genomic locus. It is the data that many variant and mutation calling algorithms use to determine variant status and allelic fractions.</p>
-<p>There are 3 steps:</p>
-<ol style="list-style-type: lower-alpha">
-<li>Define the genomic coordinates and read components to query (<code>ScanBamParam</code>) - same as before</li>
-<li>Define the pileup-specific parameters, such as filters (<code>PileupParam</code>)</li>
-<li>Run the <code>pileup</code> command</li>
-</ol>
-<div id="a.-set-up-the-pileup-parameters-pileupparam." class="section level3">
-<h3>a. Set up the pileup parameters: <code>PileupParam</code>.</h3>
-<p>The <code>PileupParam()</code> function will allow for specifying criteria such as minimum read depth, <a href="https://www.rdocumentation.org/packages/Rsamtools/versions/1.24.0/topics/pileup" class="uri">https://www.rdocumentation.org/packages/Rsamtools/versions/1.24.0/topics/pileup</a></p>
-<pre class="r"><code>pu.param &lt;- PileupParam() # default settings</code></pre>
-</div>
-<div id="b.-set-up-scanbam-parameters-scanbamparam." class="section level3">
-<h3>b. Set up scanBam parameters: <code>ScanBamParam</code>.</h3>
-<p>Let’s try generating the pileup for <code>17:37883255-37883260</code>.</p>
-<pre class="r"><code>whichRanges2 &lt;- GRanges(seqnames = &quot;17&quot;,
-                        IRanges(start = 37883255, end = 37883260))
-param &lt;- ScanBamParam(flag = flag, which = whichRanges2, 
-                      what = whatFields, mapqFilter = 30)</code></pre>
-</div>
-<div id="c.-generate-the-pipeline-at-1737883255-37883260." class="section level3">
-<h3>c. Generate the pipeline at <code>17:37883255-37883260</code>.</h3>
-<p>The <code>pileup</code> command outputs a <code>data.frame</code> object containing the counts for each allele at every base specified in <code>param</code>.</p>
-<pre class="r"><code>pu &lt;- pileup(file = bamFile, scanBamParam = param, pileupParam = pu.param)
-pu</code></pre>
-<pre><code>##    seqnames      pos strand nucleotide count          which_label
-## 1        17 37883255      +          G     2 17:37883255-37883260
-## 2        17 37883255      -          G     3 17:37883255-37883260
-## 3        17 37883256      +          G     2 17:37883255-37883260
-## 4        17 37883256      -          G     3 17:37883255-37883260
-## 5        17 37883257      +          G     2 17:37883255-37883260
-## 6        17 37883257      -          G     3 17:37883255-37883260
-## 7        17 37883258      -          G     2 17:37883255-37883260
-## 8        17 37883258      +          T     2 17:37883255-37883260
-## 9        17 37883258      -          T     1 17:37883255-37883260
-## 10       17 37883259      +          C     2 17:37883255-37883260
-## 11       17 37883259      -          C     3 17:37883255-37883260
-## 12       17 37883260      +          A     2 17:37883255-37883260
-## 13       17 37883260      -          A     3 17:37883255-37883260</code></pre>
+<div id="d.-what-is-the-rs-id-genotype-gt-and-depth-dp-at-the-snp-in-this-locus" class="section level3">
+<h3>d. What is the RS id, genotype (<code>GT</code>) and depth (<code>DP</code>) at the SNP in this locus?</h3>
+<pre class="r"><code># geno()</code></pre>
 </div>
 </div>
 

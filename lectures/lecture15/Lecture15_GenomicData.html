@@ -11,9 +11,9 @@
 
 <meta name="author" content="Gavin Ha" />
 
-<meta name="date" content="2021-11-30" />
+<meta name="date" content="2022-11-17" />
 
-<title>MCB536 Lecture 16 (Part 3): Read Variant Call Format (VCF) Files in R</title>
+<title>MCB536 Lecture 15 (Part 1): Genomic Data Analysis in R</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -359,151 +359,209 @@ pre code {
 
 
 
-<h1 class="title toc-ignore">MCB536 Lecture 16 (Part 3): Read Variant Call Format (VCF) Files in R</h1>
+<h1 class="title toc-ignore">MCB536 Lecture 15 (Part 1): Genomic Data Analysis in R</h1>
 <h4 class="author">Gavin Ha</h4>
-<h4 class="date">11/30/2021</h4>
+<h4 class="date">11/17/2022</h4>
 
 </div>
 
 
-<p>We will learn to read VCF files within R using a publicly available dataset of genomic variant calls for the infamous individual, NA12878. The Genome-in-a-Bottle Consortium has compiled consensus variant calls on this individual’s genome and released this data for researchers to use. One of the main purposes of this data is to provide a benchmark for those to develop computational tools and analysis of human genomes. See <a href="https://github.com/genome-in-a-bottle/giab_latest_release" class="uri">https://github.com/genome-in-a-bottle/giab_latest_release</a></p>
-<p>Variant Call Format (VCF) is a very common format for representing genomic variation data. See Lecture 16: Slides 19.</p>
-<div id="install-and-load-the-variantannotation-bioconductor-package" class="section level2">
-<h2>0. Install and load the <code>VariantAnnotation</code> Bioconductor package</h2>
-<p>Load the <code>VariantAnnotation</code> package</p>
-<pre class="r"><code>#BiocManager::install(&quot;VariantAnnotation&quot;)
-library(VariantAnnotation)</code></pre>
+<div id="genomicranges-object-to-store-genomic-data" class="section level1">
+<h1><code>GenomicRanges</code> Object to Store Genomic Data</h1>
+<p>Genomic data is often described using chromosomes and coordinates. A locus can be a single base position or a region that includes a start and end coordinate. In R, there is a Bioconductor package called <code>GenomicRanges</code> that stores this in a convenient structure for efficient querying using routine operations. <code>GRanges</code> object class is in which genomic data will be stored. We will demonstrate the most common operation, <code>findOverlaps</code>, to determine intersecting positions or regions in the genome. See <a href="https://bioconductor.org/packages/release/bioc/vignettes/GenomicRanges/inst/doc/GenomicRangesIntroduction.html" class="uri">https://bioconductor.org/packages/release/bioc/vignettes/GenomicRanges/inst/doc/GenomicRangesIntroduction.html</a></p>
+<p>An additional package called <code>plyranges</code> provides convenient syntax similar to that used in <code>tidyverse</code> to manipulate and apply operations on <code>Granges</code> objects. See <a href="https://www.bioconductor.org/packages/devel/bioc/vignettes/plyranges/inst/doc/an-introduction.html" class="uri">https://www.bioconductor.org/packages/devel/bioc/vignettes/plyranges/inst/doc/an-introduction.html</a></p>
+<p>In this tutorial, we will work with The Cancer Genome Atlas (TCGA) data for primary breast cancer patient samples. Specifically, these are segmentation data used for copy number alteration analysis. See Lecture 16: Slide 47.</p>
+<div id="load-the-genomicranges-bioconductor-package" class="section level2">
+<h2>0. Load the <code>GenomicRanges</code> Bioconductor package</h2>
+<pre class="r"><code>#BiocManager::install(GenomicRanges&quot;)
+library(GenomicRanges)
+library(plyranges)</code></pre>
 </div>
-<div id="prepare-parameters-for-reading-vcf-file." class="section level2">
-<h2>1. Prepare parameters for reading VCF file.</h2>
-<p>There are a lot of variants in this file <code>GIAB_highconf_v.3.3.2.vcf.gz</code>, so we want to restrict to a smaller region for this example.</p>
-<div id="a.-setup-parameters-for-scanning-the-vcf-file." class="section level3">
-<h3>a. Setup parameters for scanning the VCF file.</h3>
-<p>First, we need to set up a <code>ScanVcfParam</code> object to read within <code>17:35500000-36000000</code>.</p>
-<pre class="r"><code>vcfFile &lt;- &quot;GIAB_highconf_v.3.3.2.vcf.gz&quot;
-vcfHead &lt;- scanVcfHeader(vcfFile)
-myGRange4 &lt;- GRanges(seqnames = &quot;17&quot;, ranges = IRanges(start = 35500000, end = 36000000))
-vcf.param &lt;- ScanVcfParam(which = myGRange4) </code></pre>
+<div id="create-a-granges-object." class="section level2">
+<h2>1. Create a GRanges object.</h2>
+<p>A <code>GRanges</code> object must contain an attribute called <code>seqnames</code> to represent chromosomes and <code>ranges</code> attribute to represent the <code>start</code> and <code>end</code> coordinates. The range is 1-index-based (as opposed to 0-index), The <code>start</code> and <code>end</code> can be the same value if it is a single base-pair.</p>
+<pre class="r"><code>myGRange &lt;- GRanges(seqnames = &quot;17&quot;,
+                    ranges = IRanges(start = 37844393, end = 37844393))</code></pre>
+<p>Alternatively, using <code>plyranges</code> we can use familiar syntax to create the same <code>GRanges</code> object.</p>
+<pre class="r"><code>myGRange &lt;- data.frame(seqnames = &quot;17&quot;, start = 37844393, end = 37844393) %&gt;% as_granges()</code></pre>
 </div>
+<div id="load-genomic-data-from-a-file" class="section level2">
+<h2>2. Load Genomic Data From A File</h2>
+<p>There are numerous text file formats for representing genomic data and some of these were discussed in Lecture 16. Here, we will show you that a <code>GRanges</code> can be easily created from any text file that contains delimited columns specifying genomic coorindates.</p>
+<div id="seg-format" class="section level3">
+<h3>2.1 SEG format</h3>
+<p>SEGment Data (<a href="http://software.broadinstitute.org/software/igv/SEG" class="uri">http://software.broadinstitute.org/software/igv/SEG</a>) format is tab-delimited and a flexible way to define any genomic data.</p>
+<p>There are 4 required columns:</p>
+<ol style="list-style-type: decimal">
+<li>Name</li>
+<li>Chromosome</li>
+<li>Start Coordinate</li>
+<li>End Coordinate</li>
+</ol>
+<p>This is similar to the BED file format but with the additional requirement for <em>Name</em> as the first column.</p>
 </div>
-<div id="read-the-vcf-file." class="section level2">
-<h2>2. Read the VCF file.</h2>
-<pre class="r"><code>vcf &lt;- readVcf(vcfFile, genome = &quot;hg19&quot;, param = vcf.param)</code></pre>
-<p>The <code>vcf</code> variable is of class <code>CollapsedVCF</code> and will contain header information and data. Let’s see what information has been parsed by <code>readVcf</code>.</p>
+<div id="a.-load-the-seg-file-containing-the-segments-into-a-data.frame-object." class="section level3">
+<h3>a. Load the SEG file containing the segments into a <code>data.frame</code> object.</h3>
+<pre class="r"><code>segs &lt;- read.table(&quot;BRCA.genome_wide_snp_6_broad_Level_3_scna.seg&quot;, header = TRUE)</code></pre>
+<p>Small processing of this file to correct a few legacy hacks. We need to change chromosome 23 to chromosome X.</p>
+<pre class="r"><code>str(segs) # show the class type for each column</code></pre>
+<pre><code>## &#39;data.frame&#39;:    284458 obs. of  6 variables:
+##  $ Sample      : chr  &quot;TCGA-3C-AAAU-10A-01D-A41E-01&quot; &quot;TCGA-3C-AAAU-10A-01D-A41E-01&quot; &quot;TCGA-3C-AAAU-10A-01D-A41E-01&quot; &quot;TCGA-3C-AAAU-10A-01D-A41E-01&quot; ...
+##  $ Chromosome  : int  1 1 1 1 1 1 1 1 1 2 ...
+##  $ Start       : int  3218610 95676511 95680124 167057495 167059760 181603120 181610685 201474400 201475220 484222 ...
+##  $ End         : int  95674710 95676518 167057183 167059336 181602002 181609567 201473647 201474544 247813706 51515129 ...
+##  $ Num_Probes  : int  53225 2 24886 3 9213 6 12002 2 29781 30300 ...
+##  $ Segment_Mean: num  0.0055 -1.6636 0.0053 -1.0999 -0.0008 ...</code></pre>
+<pre class="r"><code>mode(segs$Chromosome) &lt;- &quot;character&quot; # change the class of the chromosome to character
+segs[segs$Chromosome == 23, &quot;Chromosome&quot;] &lt;- &quot;X&quot;</code></pre>
 </div>
-<div id="extract-the-contents-of-the-vcf-entries." class="section level2">
-<h2>3. Extract the contents of the VCF entries.</h2>
-<div id="a.-return-the-variants-in-this-region-as-a-granges-object." class="section level3">
-<h3>a. Return the variants in this region as a <code>GRanges</code> object.</h3>
-<p>The <code>rowRanges</code> function will return a <code>GRanges</code> object containing the coordinates, REF/ALT bases, quality, and filtering status of the variants.</p>
-<pre class="r"><code>rowRanges(vcf)</code></pre>
-<pre><code>## GRanges object with 332 ranges and 5 metadata columns:
-##               seqnames            ranges strand | paramRangeID            REF
-##                  &lt;Rle&gt;         &lt;IRanges&gt;  &lt;Rle&gt; |     &lt;factor&gt; &lt;DNAStringSet&gt;
-##     rs2411161       17          35501799      * |           NA              C
-##     rs8073074       17          35502949      * |           NA              A
-##     rs4523972       17          35507230      * |           NA              C
-##   rs111498996       17 35507465-35507466      * |           NA             CA
-##     rs8077266       17          35509302      * |           NA              A
-##           ...      ...               ...    ... .          ...            ...
-##     rs8080225       17          35996195      * |           NA              T
-##     rs8075378       17          35996582      * |           NA              G
-##     rs6607281       17          35997126      * |           NA              T
-##     rs4332783       17          35997674      * |           NA              A
-##    rs71984199       17          35998800      * |           NA              C
-##                              ALT      QUAL      FILTER
-##               &lt;DNAStringSetList&gt; &lt;numeric&gt; &lt;character&gt;
-##     rs2411161                  T        50        PASS
-##     rs8073074                  G        50        PASS
-##     rs4523972                  T        50        PASS
-##   rs111498996                  C        50        PASS
-##     rs8077266                  G        50        PASS
-##           ...                ...       ...         ...
-##     rs8080225                  C        50        PASS
-##     rs8075378                  A        50        PASS
-##     rs6607281                  C        50        PASS
-##     rs4332783                  G        50        PASS
-##    rs71984199                 CT        50        PASS
+<div id="b.-convert-the-data.frame-object-into-a-granges." class="section level3">
+<h3>b. Convert the <code>data.frame</code> object into a <code>GRanges</code>.</h3>
+<p>You can use the <code>as()</code> function, as long as the 3 required columns are present. It is also flexible how the columns are named. For example, the column can be <code>Start</code>, <code>start</code>, <code>Chr</code>, <code>chr</code>, <code>Chromosome</code>, <code>End</code>, <code>Stop</code>, etc.</p>
+<pre class="r"><code>segs.gr &lt;- as(segs, &quot;GRanges&quot;)
+segs.gr</code></pre>
+<pre><code>## GRanges object with 284458 ranges and 3 metadata columns:
+##            seqnames              ranges strand |                 Sample
+##               &lt;Rle&gt;           &lt;IRanges&gt;  &lt;Rle&gt; |            &lt;character&gt;
+##        [1]        1    3218610-95674710      * | TCGA-3C-AAAU-10A-01D..
+##        [2]        1   95676511-95676518      * | TCGA-3C-AAAU-10A-01D..
+##        [3]        1  95680124-167057183      * | TCGA-3C-AAAU-10A-01D..
+##        [4]        1 167057495-167059336      * | TCGA-3C-AAAU-10A-01D..
+##        [5]        1 167059760-181602002      * | TCGA-3C-AAAU-10A-01D..
+##        ...      ...                 ...    ... .                    ...
+##   [284454]       19     284018-58878226      * | TCGA-Z7-A8R6-01A-11D..
+##   [284455]       20     455764-62219837      * | TCGA-Z7-A8R6-01A-11D..
+##   [284456]       21   15347621-47678774      * | TCGA-Z7-A8R6-01A-11D..
+##   [284457]       22   17423930-49331012      * | TCGA-Z7-A8R6-01A-11D..
+##   [284458]        X   3157107-154905589      * | TCGA-Z7-A8R6-01A-11D..
+##            Num_Probes Segment_Mean
+##             &lt;integer&gt;    &lt;numeric&gt;
+##        [1]      53225       0.0055
+##        [2]          2      -1.6636
+##        [3]      24886       0.0053
+##        [4]          3      -1.0999
+##        [5]       9213      -0.0008
+##        ...        ...          ...
+##   [284454]      23950      -0.1170
+##   [284455]      37283       0.3435
+##   [284456]      20582      -0.1117
+##   [284457]      16927      -0.1231
+##   [284458]      63797       0.0014
 ##   -------
-##   seqinfo: 25 sequences from hg19 genome</code></pre>
-</div>
-<div id="b.-inspect-the-header-information" class="section level3">
-<h3>b. Inspect the header information</h3>
-<p>The <code>INFO</code> column in the original VCF text file contains a semi-colon delimited set of custom fields with flexible format that algorithms will output. Here, it is parsed into usable format. First, let’s look at what fields are available from the header.</p>
-<pre class="r"><code>info(vcf) # returns a DataFrame object</code></pre>
-<p>The <code>FORMAT</code> column in the original VCF text file contains the format and description of the genotype fields. Let’s see what these are.</p>
-<pre class="r"><code>geno(header(vcf))</code></pre>
-<pre><code>## DataFrame with 8 rows and 3 columns
-##            Number        Type            Description
-##       &lt;character&gt; &lt;character&gt;            &lt;character&gt;
-## GT              1      String Consensus Genotype a..
-## DP              1     Integer Total read depth sum..
-## GQ              1     Integer Net Genotype quality..
-## ADALL           R     Integer Net allele depths ac..
-## AD              R     Integer Net allele depths ac..
-## IGT             1      String Original input genot..
-## IPS             1      String      Phase set for IGT
-## PS              1      String       Phase set for GT</code></pre>
-</div>
-<div id="c.-inspect-the-genotype-read-depth-and-allele-depth-inforation." class="section level3">
-<h3>c. Inspect the genotype, read depth, and allele depth inforation.</h3>
-<p>To see the genotype <code>GT</code>, read depth <code>DP</code>, and allele depth <code>AD</code>, we access the the list.</p>
-<pre class="r"><code>geno(vcf)$GT[1:5]</code></pre>
-<pre><code>## [1] &quot;1|1&quot; &quot;1|1&quot; &quot;1|1&quot; &quot;1|1&quot; &quot;1|1&quot;</code></pre>
-<pre class="r"><code>geno(vcf)$DP[1:5]</code></pre>
-<pre><code>## [1] 675 607 528 470 718</code></pre>
-<pre class="r"><code>geno(vcf)$AD[1:5]</code></pre>
-<pre><code>## [[1]]
-## [1]  95 372
-## 
-## [[2]]
-## [1]  77 334
-## 
-## [[3]]
-## [1]  66 292
-## 
-## [[4]]
-## [1]   0 223
-## 
-## [[5]]
-## [1]  97 393</code></pre>
-</div>
-<div id="d.-combine-all-geno-fields-into-a-single-table." class="section level3">
-<h3>d. Combine all <code>geno</code> fields into a single table.</h3>
-<p>You can also combine all fields into a <code>data.frame</code> object. But this code only works if the VCF contains a single sample.</p>
-<pre class="r"><code>genoData &lt;- data.frame(do.call(cbind, geno(vcf)))
-colnames(genoData) &lt;- rownames(geno(header(vcf)))
-genoData[1:10,]</code></pre>
-<pre><code>##              GT  DP   GQ    ADALL       AD IGT IPS     PS
-## rs2411161   1|1 675  405   1, 301  95, 372 1/1   . PATMAT
-## rs8073074   1|1 607  387   0, 278  77, 334 1/1   . PATMAT
-## rs4523972   1|1 528  290   1, 230  66, 292 1/1   . PATMAT
-## rs111498996 1|1 470   99   0, 223   0, 223 1/1   . PATMAT
-## rs8077266   1|1 718  452   0, 328  97, 393 1/1   . PATMAT
-## rs75773263  1|1 773  233   0, 378   31, 31 1/1   . PATMAT
-## rs725038    1|1 896  287   0, 442   51, 51 1/1   . PATMAT
-## rs10664252  1|1 577  366   0, 265   68, 68 1/1   . PATMAT
-## rs11655013  0|1 720 1197 159, 155 206, 193 0/1   . PATMAT
-## rs9906543   1|1 730  458   0, 315 119, 420 1/1   . PATMAT</code></pre>
+##   seqinfo: 23 sequences from an unspecified genome; no seqlengths</code></pre>
+<p>Alternatively, using <code>plyranges</code>. Here, we need to rename the columns: <code>Chromosome</code>-&gt;<code>seqnames</code>, <code>Start</code>-&gt;<code>start</code>, <code>End</code>-&gt;<code>end</code>.</p>
+<pre class="r"><code>colnames(segs)[2:4] &lt;- c(&quot;seqnames&quot;, &quot;start&quot;, &quot;end&quot;)
+segs.gr &lt;- segs %&gt;% as_granges()</code></pre>
 </div>
 </div>
-<div id="exercise-3-reading-variants-from-a-vcf-file." class="section level2">
-<h2>Exercise 3: Reading variants from a VCF file.</h2>
-<div id="a.-create-a-range-for-8128747680-128753680." class="section level3">
-<h3>a. Create a range for <code>8:128747680-128753680</code>.</h3>
+<div id="operations-and-features-of-genomicranges" class="section level2">
+<h2>3. Operations and features of GenomicRanges</h2>
+<p>Some of the most useful features of <code>GRanges</code> object is the fast and easy methods for determining overlaps between sets of ranges. Here, we will describe examples using some of the common functions.</p>
+<div id="tiling-the-genome" class="section level3">
+<h3>3.1 Tiling the genome</h3>
+<p>Often we would like to <em>find</em> or <em>count</em> events overlapping regions in the genome. In an unbiased fashion, we could do this genome-wide by dividing the genome into tiles/windows/bins.</p>
+<p>We will use the <code>tileGenome()</code> for this task, which requires three arguments: length of the chromosomes, number of tiles and the size of each tile.</p>
+</div>
+<div id="a.-we-need-the-lengths-of-the-chromosomes-in-the-human-genome." class="section level3">
+<h3>a. We need the lengths of the chromosomes in the human genome.</h3>
+<p>We need to load human genome information for build <code>hg19</code>. Since there are non-standard chromosomes, we only want to keep the standard chromosomes using <code>keepStandardChromosomes</code>. Then, since our <code>segs</code> data uses <code>NCBI</code> chromosome naming convention (i.e. <code>1</code> instead of <code>chr1</code>), we need set the <code>seqlevelStyle</code>.</p>
+<pre class="r"><code>seqinfo &lt;- Seqinfo(genome = &quot;hg19&quot;)
+seqinfo &lt;- keepStandardChromosomes(seqinfo) 
+seqlevelsStyle(seqinfo) &lt;- &quot;NCBI&quot;</code></pre>
+<pre><code>## Warning in (function (seqlevels, genome, new_style) : cannot switch some of
+## hg19&#39;s seqlevels from UCSC to NCBI style</code></pre>
+<pre class="r"><code>seqinfo</code></pre>
+<pre><code>## Seqinfo object with 25 sequences (1 circular) from 2 genomes (GRCh37.p13, hg19):
+##   seqnames seqlengths isCircular     genome
+##   1         249250621      FALSE GRCh37.p13
+##   2         243199373      FALSE GRCh37.p13
+##   3         198022430      FALSE GRCh37.p13
+##   4         191154276      FALSE GRCh37.p13
+##   5         180915260      FALSE GRCh37.p13
+##   ...             ...        ...        ...
+##   21         48129895      FALSE GRCh37.p13
+##   22         51304566      FALSE GRCh37.p13
+##   X         155270560      FALSE GRCh37.p13
+##   Y          59373566      FALSE GRCh37.p13
+##   chrM          16571       TRUE       hg19</code></pre>
+</div>
+<div id="b.-split-the-genome-into-500kb-tiles-or-windows." class="section level3">
+<h3>b. Split the genome into 500kb tiles or windows.</h3>
+<pre class="r"><code>slen &lt;- seqlengths(seqinfo) # get the length of the chromosomes
+tileWidth &lt;- 500000 # tile size of 500kb
+tiles &lt;- tileGenome(seqlengths = slen, tilewidth = tileWidth,
+                    cut.last.tile.in.chrom = TRUE)
+tiles</code></pre>
+<pre><code>## GRanges object with 6207 ranges and 0 metadata columns:
+##          seqnames            ranges strand
+##             &lt;Rle&gt;         &lt;IRanges&gt;  &lt;Rle&gt;
+##      [1]        1          1-500000      *
+##      [2]        1    500001-1000000      *
+##      [3]        1   1000001-1500000      *
+##      [4]        1   1500001-2000000      *
+##      [5]        1   2000001-2500000      *
+##      ...      ...               ...    ...
+##   [6203]        Y 57500001-58000000      *
+##   [6204]        Y 58000001-58500000      *
+##   [6205]        Y 58500001-59000000      *
+##   [6206]        Y 59000001-59373566      *
+##   [6207]     chrM           1-16571      *
+##   -------
+##   seqinfo: 25 sequences from an unspecified genome</code></pre>
+</div>
+<div id="finding-overlap-of-ranges" class="section level3">
+<h3>3.2 Finding overlap of ranges</h3>
+<p>One of the most useful features of <code>GenomicRanges</code> is to simply identify the ranges that overlap between two <code>GRanges</code> objects. The <code>findOverlaps</code> function is a basic method in the <code>GRanges</code> class for finding the overlaps of the elements that overlap between two <code>GRanges</code>. The argmuents <code>query</code> for your main <code>tiles.subset</code> and <code>subject</code> for the <code>segs.gr</code>. The <code>type</code> argument describes the type of overlap, such as <code>any</code>, <code>within</code>, <code>start</code>, <code>end</code>, <code>equal</code>, and there are additional arguments for criteria for overlap such as <code>minoverlap</code> size.</p>
+<p>For this example, let’s find which copy number alteration segments from <code>segs.gr</code> overlap in <em>any</em> way with our ranges in <code>tiles.subset</code> (<code>17:35500000-37000000</code>).</p>
+</div>
+<div id="a.-find-the-tiled-ranges-for-chromosome-17-starting-35500000-and-ending-37000000." class="section level3">
+<h3>a. Find the tiled ranges for chromosome <code>17</code>, starting <code>35500000</code> and ending <code>37000000</code>.</h3>
+<pre class="r"><code>tiles.subset &lt;- tiles[seqnames(tiles) == &quot;17&quot; &amp; start(tiles) &gt;= 35500000 &amp; end(tiles) &lt;= 37000000]
+tiles.subset</code></pre>
+<pre><code>## GRanges object with 3 ranges and 0 metadata columns:
+##       seqnames            ranges strand
+##          &lt;Rle&gt;         &lt;IRanges&gt;  &lt;Rle&gt;
+##   [1]       17 35500001-36000000      *
+##   [2]       17 36000001-36500000      *
+##   [3]       17 36500001-37000000      *
+##   -------
+##   seqinfo: 25 sequences from an unspecified genome</code></pre>
+<p>Alternatively, using <code>plyranges</code> and the <code>filter</code> verb.</p>
+<pre class="r"><code>tiles.subset &lt;- tiles %&gt;% filter(seqnames == &quot;17&quot; &amp; start &gt;= 35500000 &amp; end &lt;= 37000000)</code></pre>
+</div>
+<div id="b.-find-the-overlap-between-segs.gr-and-tiles.subset." class="section level3">
+<h3>b. Find the overlap between <code>segs.gr</code> and <code>tiles.subset</code>.</h3>
+<p>Let’s find the segments in <code>segs.gr</code> (<code>query</code>) that overlap our <code>tiles.subset</code> (<code>subject</code>).</p>
+<p><code>plyranges</code> provides convenient functions that can bypass having to deal with hits/indices and returns the overlapped regions. Here, we use the function <code>find_overlaps</code>. This function will return all of the ranges in the <code>query</code> that overlap with the <code>subject</code>.</p>
+<pre class="r"><code>segs.overlap &lt;- find_overlaps(segs.gr, tiles.subset)  # arguments: find_overlaps(query, subject)
+segs.overlap[1:2] # show first 2 segments from segs.gr that overlapped tiles.subset</code></pre>
+<pre><code>## GRanges object with 2 ranges and 3 metadata columns:
+##       seqnames          ranges strand |                 Sample Num_Probes
+##          &lt;Rle&gt;       &lt;IRanges&gt;  &lt;Rle&gt; |            &lt;character&gt;  &lt;integer&gt;
+##   [1]       17 987221-73296953      * | TCGA-3C-AAAU-10A-01D..      33859
+##   [2]       17 987221-73296953      * | TCGA-3C-AAAU-10A-01D..      33859
+##       Segment_Mean
+##          &lt;numeric&gt;
+##   [1]       0.0088
+##   [2]       0.0088
+##   -------
+##   seqinfo: 23 sequences from an unspecified genome; no seqlengths</code></pre>
+</div>
+</div>
+<div id="exercise-1" class="section level2">
+<h2>Exercise 1:</h2>
+<div id="a.-create-a-range-for-1169400000-69500000." class="section level3">
+<h3>a. Create a range for <code>11:69400000-69500000</code>.</h3>
 <pre class="r"><code># GRanges()</code></pre>
 </div>
-<div id="b.-setup-parameters-to-read-vcf." class="section level3">
-<h3>b. Setup parameters to read VCF.</h3>
-<pre class="r"><code># ScanVcfParam</code></pre>
+<div id="b.-find-overlap-between-1169400000-69500000-and-segs.gr." class="section level3">
+<h3>b. Find overlap between <code>11:69400000-69500000</code> and <code>segs.gr</code>.</h3>
+<pre class="r"><code># find_overlaps() from plyranges</code></pre>
 </div>
-<div id="c.-read-the-vcf-file-at-8128747680-128753680" class="section level3">
-<h3>c. Read the VCF file at <code>8:128747680-128753680</code></h3>
-<pre class="r"><code># readVcf</code></pre>
+<div id="c.-what-is-the-segment_mean-for-the-2nd-segment-that-overlaps-1169400000-69500000" class="section level3">
+<h3>c. What is the <code>Segment_Mean</code> for the 2nd segment that overlaps <code>11:69400000-69500000</code>?</h3>
+<pre class="r"><code># index the 2nd segment in the result to (b)</code></pre>
 </div>
-<div id="d.-what-is-the-rs-id-genotype-gt-and-depth-dp-at-the-snp-in-this-locus" class="section level3">
-<h3>d. What is the RS id, genotype (<code>GT</code>) and depth (<code>DP</code>) at the SNP in this locus?</h3>
-<pre class="r"><code># geno()</code></pre>
 </div>
 </div>
 
